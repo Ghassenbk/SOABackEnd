@@ -1,75 +1,58 @@
 package com.example.demo.controller;
 
-import com.example.demo.exception.ResourceNotFoundException;
 import com.example.demo.model.AvisEntity;
-import com.example.demo.repository.AvisRepository;
+import com.example.demo.service.AvisService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import javax.validation.Valid;
 import java.util.List;
-import java.util.Optional;
 
 @RestController
 @RequestMapping("/avis")
 public class AvisController {
 
     @Autowired
-    private AvisRepository avisRepository;
+    private AvisService avisService;
 
     @GetMapping
     public List<AvisEntity> getAllAvis() {
-        return avisRepository.findAll();
+        return avisService.getAllAvis();
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<AvisEntity> getAvisById(@PathVariable int id) {
-        AvisEntity avis = avisRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Avis not found with ID " + id));
+        AvisEntity avis = avisService.getAvisById(id);
         return ResponseEntity.ok(avis);
     }
 
     @PostMapping
     public AvisEntity createAvis(@Valid @RequestBody AvisEntity avisEntity) {
-        return avisRepository.save(avisEntity);
+        return avisService.createAvis(avisEntity);
     }
-
-
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteAvis(@PathVariable int id) {
-        if (avisRepository.existsById(id)) {
-            avisRepository.deleteById(id);
-            return ResponseEntity.noContent().build();
-        } else {
-            throw new ResourceNotFoundException("Avis not found with ID " + id);
-        }
+        avisService.deleteAvis(id);
+        return ResponseEntity.noContent().build();
     }
 
     @DeleteMapping
     public ResponseEntity<Void> deleteAllAvis() {
-        avisRepository.deleteAll();
+        avisService.deleteAllAvis();
         return ResponseEntity.noContent().build();
     }
 
     @PutMapping("/{id}/status")
     public ResponseEntity<AvisEntity> updateStatus(@PathVariable int id) {
-        AvisEntity avis = avisRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Avis not found with ID " + id));
-
-        avis.setStatus(1);
-        AvisEntity updatedAvis = avisRepository.save(avis);
-
+        AvisEntity updatedAvis = avisService.updateStatus(id);
         return ResponseEntity.ok(updatedAvis);
     }
+
     @PutMapping("/status")
     public ResponseEntity<Void> markAllAsRead() {
-        List<AvisEntity> avisList = avisRepository.findAll();
-
-        avisList.forEach(avis -> avis.setStatus(1));
-        avisRepository.saveAll(avisList);
-
+        avisService.markAllAsRead();
         return ResponseEntity.noContent().build();
     }
 }

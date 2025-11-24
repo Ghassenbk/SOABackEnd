@@ -1,11 +1,10 @@
 package com.example.demo.controller;
 
 import com.example.demo.model.FournisseurEntity;
-import com.example.demo.repository.FournisseurRepository;
+import com.example.demo.service.FournisseurService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
 
 import javax.validation.Valid;
 import java.util.List;
@@ -15,45 +14,43 @@ import java.util.List;
 public class FournisseurController {
 
     @Autowired
-    private FournisseurRepository repo;
+    private FournisseurService service;
 
     @GetMapping
     public List<FournisseurEntity> getAll() {
-        return repo.findAll();
+        return service.getAllFournisseurs();
     }
 
     @PostMapping
     public ResponseEntity<?> create(@Valid @RequestBody FournisseurEntity f) {
-        if (repo.existsByNom(f.getNom())) {
-            return ResponseEntity.badRequest()
-                    .body("Ce fournisseur existe déjà");
+        try {
+            FournisseurEntity saved = service.createFournisseur(f);
+            return ResponseEntity.ok(saved);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
         }
-        return ResponseEntity.ok(repo.save(f));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<FournisseurEntity> update(@PathVariable Long id,
-                                                    @Valid @RequestBody FournisseurEntity updated) {
-        return repo.findById(id)
-                .map(existing -> {
-                    existing.setNom(updated.getNom());
-                    return ResponseEntity.ok(repo.save(existing));
-                })
-                .orElse(ResponseEntity.notFound().build());
+    public ResponseEntity<?> update(@PathVariable Long id,
+                                    @Valid @RequestBody FournisseurEntity updated) {
+        try {
+            FournisseurEntity saved = service.updateFournisseur(id, updated);
+            return ResponseEntity.ok(saved);
+        } catch (Exception e) {
+            return ResponseEntity.notFound().build();
+        }
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<?> delete(@PathVariable Long id) {
-        return repo.findById(id)
-                .map(fournisseur -> {
-                    if (fournisseur.getProduits() != null && !fournisseur.getProduits().isEmpty()) {
-                        return ResponseEntity.badRequest()
-                                .body("Impossible de supprimer : ce fournisseur est utilisé par " +
-                                        fournisseur.getProduits().size() + " produit(s)");
-                    }
-                    repo.delete(fournisseur);
-                    return ResponseEntity.ok().build();
-                })
-                .orElse(ResponseEntity.notFound().build());
+        try {
+            service.deleteFournisseur(id);
+            return ResponseEntity.ok().build();
+        } catch (IllegalStateException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.notFound().build();
+        }
     }
 }
