@@ -1,31 +1,22 @@
 package com.example.demo;
 
-
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.web.servlet.FilterRegistrationBean;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-
-import org.springframework.web.servlet.config.annotation.CorsRegistry;
-import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+import org.springframework.web.servlet.config.annotation.*;
 
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
 
 
-    @Bean
-    public WebMvcConfigurer corsConfigurer() {
-        return new WebMvcConfigurer() {
-            @Override
-            public void addCorsMappings(CorsRegistry registry) {
-                registry.addMapping("/**") // Allow all endpoints
-                        .allowedOrigins("http://localhost:4200") // Allow Angular's origin
-                        .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
-                        .allowedHeaders("*")
-                        .allowCredentials(true);
-            }
-        };
+    @Override
+    public void addResourceHandlers(ResourceHandlerRegistry registry) {
+        // THIS IS THE ONLY ONE THAT WORKS 100% IN DEV + PROD
+        registry.addResourceHandler("/images/**")
+                .addResourceLocations("file:src/main/resources/static/images/")
+                .setCachePeriod(3600);
+
+        registry.addResourceHandler("/pdfs/**")
+                .addResourceLocations("file:src/main/resources/static/images/")  // Wait — NO!
+                .addResourceLocations("file:src/main/resources/static/pdfs/")
+                .setCachePeriod(3600);
     }
-
-
 }

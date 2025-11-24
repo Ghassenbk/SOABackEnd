@@ -1,17 +1,19 @@
- package com.example.demo.model;
+package com.example.demo.model;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 
- @Entity
+@Entity
 @Data
 @RequiredArgsConstructor
 @Table(name = "paiement")
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class PaiementEntity {
 
      @Id
@@ -19,32 +21,29 @@ public class PaiementEntity {
      private Long id;
 
      @Column(name = "card", nullable = false)
-     private String card; // Should contain values like "PayPal", "MasterCard", "Visa"
+     private String card;
 
      @Column(name = "total_payed", nullable = false)
      private Double totalPayed;
 
-     @ManyToOne(cascade = CascadeType.PERSIST)
-     @JoinColumn(name = "user_id", referencedColumnName = "id", nullable = true)
+     @Column(name = "date", nullable = false)
+     @Temporal(TemporalType.TIMESTAMP)
+     private Date date = new Date();
+
+     @ManyToOne
+     @JoinColumn(name = "user_id", nullable = false)
      private User user;
 
      @ManyToOne
-     @JoinColumn(name = "panier_id", referencedColumnName = "id", nullable = true)
+     @JoinColumn(name = "panier_id")
      private PanierEntity panier;
 
-     @ManyToMany
-     @JoinTable(
-             name = "paiement_solution",
-             joinColumns = @JoinColumn(name = "paiement_id"),
-             inverseJoinColumns = @JoinColumn(name = "solution_id")
-     )
-     private List<SolutionEntity> solutionsBought;
+     // CORRIGÉ : on utilise PaiementItem maintenant
+     @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
+     @JoinColumn(name = "paiement_id")  // ← UNIQUEMENT CETTE LIGNE, pas de @JoinTable !
+     @JsonIgnoreProperties("paiement")
+     private List<PaiementItem> items = new ArrayList<>();
 
-      @Column(name = "solution_names")
-      @ElementCollection
-      private List<String> solutionNames = new ArrayList<>();
-
-
-
-
+     @ElementCollection
+     private List<String> solutionNames = new ArrayList<>();
 }

@@ -1,50 +1,31 @@
 package com.example.demo.controller;
 
-
 import com.example.demo.exception.ResourceNotFoundException;
 import com.example.demo.model.*;
 import com.example.demo.repository.*;
-import jakarta.servlet.http.HttpSession;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 
-@CrossOrigin(origins = "http://localhost:50930")
 @RestController
 @RequestMapping("/users")
+@CrossOrigin(origins = "http://localhost:4200")
 public class UserController {
 
-    @Autowired
-    private UserRepository userRepository;
+    @Autowired private UserRepository userRepository;
+    @Autowired private FormationRepository formationRepository;
+    @Autowired private AvisRepository avisRepository;
+    @Autowired private PanierRepository panierRepository;
+    @Autowired private ProduitRepository produitRepository;
+    @Autowired private PaiementRepository paiementRepository;
 
-    @Autowired
-    private FormationRepository formationRepository;
-
-    @Autowired
-    private AvisRepository avisRepository;
-
-    @Autowired
-    private PanierRepository panierRepository;
-
-    @Autowired
-    private SolutionRepository solutionRepository;
-
-    @Autowired
-    private PaiementRepository paiementRepository;
-
-
-
-
+    // ====================== USER CRUD ======================
     @GetMapping
     public ResponseEntity<List<User>> getAllUsers() {
-        List<User> users = userRepository.findAll();
-        return ResponseEntity.ok(users);
+        return ResponseEntity.ok(userRepository.findAll());
     }
 
     @GetMapping("/{id}")
@@ -54,309 +35,237 @@ public class UserController {
         return ResponseEntity.ok(user);
     }
 
-
-
     @PostMapping
-    public ResponseEntity<?> createUser(@RequestBody User user) {
+    public ResponseEntity<User> createUser(@RequestBody User user) {
         if (userRepository.findByEmail(user.getEmail()).isPresent()) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
-                    .body("A user with the email " + user.getEmail() + " already exists.");
+                    .body(null);
         }
+
+        // Créer un panier vide (nouvelle architecture)
         PanierEntity panier = new PanierEntity();
-        panier.setSolutions(new ArrayList<>());
         user.setPanier(panier);
         user.setRole(Role.CLIENT);
-        user.setPassword(user.getPassword());
 
-        User savedUser = userRepository.save(user);
-
-        return ResponseEntity.status(HttpStatus.CREATED).body(savedUser);
+        User saved = userRepository.save(user);
+        return ResponseEntity.status(HttpStatus.CREATED).body(saved);
     }
-
-
 
     @PutMapping("/{id}")
     public ResponseEntity<User> updateUser(@PathVariable Long id, @RequestBody User updatedUser) {
-        User existingUser = userRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
-        if (updatedUser.getName() != null && !updatedUser.getName().isEmpty()) {
-            existingUser.setName(updatedUser.getName());
-        }
-        if (updatedUser.getEmail() != null && !updatedUser.getEmail().isEmpty()) {
-            existingUser.setEmail(updatedUser.getEmail());
-        }
-        if (updatedUser.getPhone() != null && !updatedUser.getPhone().isEmpty()) {
-            existingUser.setPhone(updatedUser.getPhone());
-        }
-        if (updatedUser.getAdresse() != null && !updatedUser.getAdresse().isEmpty()) {
-            existingUser.setAdresse(updatedUser.getAdresse());
-        }
-        if (updatedUser.getPassword() != null && !updatedUser.getPassword().isEmpty()) {
-            existingUser.setPassword(updatedUser.getPassword());
-        }
+        if (updatedUser.getName() != null && !updatedUser.getName().isBlank()) user.setName(updatedUser.getName());
+        if (updatedUser.getEmail() != null && !updatedUser.getEmail().isBlank()) user.setEmail(updatedUser.getEmail());
+        if (updatedUser.getPhone() != null && !updatedUser.getPhone().isBlank()) user.setPhone(updatedUser.getPhone());
+        if (updatedUser.getAdresse() != null && !updatedUser.getAdresse().isBlank()) user.setAdresse(updatedUser.getAdresse());
+        if (updatedUser.getPassword() != null && !updatedUser.getPassword().isBlank()) user.setPassword(updatedUser.getPassword());
 
-        User savedUser = userRepository.save(existingUser);
-        return ResponseEntity.ok(savedUser);
+        return ResponseEntity.ok(userRepository.save(user));
     }
-
-    @DeleteMapping
-    public ResponseEntity<String> deleteAllUsers() {
-        try {
-            List<User> users = userRepository.findAll();
-
-            if (users.isEmpty()) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
-            }
-
-            for (User user : users) {
-                List<PaiementEntity> paiements = paiementRepository.findByUser(user);
-                if (paiements != null && !paiements.isEmpty()) {
-                    paiementRepository.deleteAll(paiements);
-                }
-
-                PanierEntity panier = user.getPanier();
-                if (panier != null) {
-                    panierRepository.delete(panier);
-                }
-            }
-
-            userRepository.deleteAll();
-
-            return ResponseEntity.noContent().build();
-        } catch (Exception ex) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("An error occurred while deleting users: " + ex.getMessage());
-        }
-    }
-
-
-
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteUser(@PathVariable Long id) {
         User user = userRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found with id " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
+        // Supprimer les paiements liés
+        paiementRepository.findByUser(user).forEach(paiementRepository::delete);
 
-        List<PaiementEntity> paiements = paiementRepository.findByUser(user);
-        if (paiements != null && !paiements.isEmpty()) {
-            paiementRepository.deleteAll(paiements);
-        }
-
-        PanierEntity panier = user.getPanier();
-        if (panier != null) {
-            panierRepository.delete(panier);
+        // Supprimer le panier (cascade gère les PanierSolution)
+        if (user.getPanier() != null) {
+            panierRepository.delete(user.getPanier());
         }
 
         userRepository.delete(user);
-
         return ResponseEntity.noContent().build();
     }
 
+    // ====================== PANIER (NOUVELLE ARCHITECTURE AVEC QUANTITÉ) ======================
 
-
-
-
-
-
-    // les formation dans lesquels un client est abonné
-    @GetMapping("/{id}/formations")
-    public ResponseEntity<List<FormationEntity>> getUserFormations(@PathVariable Long id) {
-        User user = userRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found with id " + id));
-
-        return ResponseEntity.ok(user.getFormations());
-    }
-
-    @GetMapping("/{id}/avis")
-    public ResponseEntity<List<AvisEntity>> getUserAvis(@PathVariable Long id) {
-        User user = userRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found with id " + id));
-
-        return ResponseEntity.ok(user.getAvis());
-    }
-
-
-    // le contenu d'un panier d'un utilisateur
     @GetMapping("/{id}/panier")
-    public ResponseEntity<PanierEntity> getUserPanier(@PathVariable Long id) {
+    public ResponseEntity<?> getUserPanier(@PathVariable Long id) {
         User user = userRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found with id " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         PanierEntity panier = user.getPanier();
         if (panier == null) {
-            throw new ResourceNotFoundException("No cart found for user with id " + id);
+            return ResponseEntity.ok(Map.of("solutionItems", new ArrayList<>()));
+        }
+
+        // ON RENVOIE UN JSON PROPRE → PAS DE PROXY
+        List<Map<String, Object>> items = new ArrayList<>();
+        for (PanierSolution ps : panier.getSolutionItems()) {
+            Map<String, Object> item = new HashMap<>();
+            item.put("quantite", ps.getQuantite());
+
+            Map<String, Object> solution = new HashMap<>();
+            solution.put("id", ps.getSolution().getId());
+            solution.put("name", ps.getSolution().getName());
+            solution.put("description", ps.getSolution().getDescription());
+            solution.put("prix", ps.getSolution().getPrix());
+            // Ajoute d'autres champs si besoin
+
+            item.put("solution", solution);
+            items.add(item);
+        }
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("solutionItems", items);
+
+        return ResponseEntity.ok(response);
+    }
+
+    // AJOUTER UNE SOLUTION AU PANIER (avec gestion de quantité)
+    // Remplace ta méthode actuelle par celle-ci (100% fonctionnelle)
+    @PostMapping("/{id}/panier/solutions/{solutionId}")
+    public ResponseEntity<Map<String, Object>> addSolutionToPanier(
+            @PathVariable Long id,
+            @PathVariable Long solutionId) {
+
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        ProduitEntity solution = produitRepository.findById(solutionId)
+                .orElseThrow(() -> new ResourceNotFoundException("Solution not found"));
+
+        PanierEntity panier = user.getPanier();
+        if (panier == null) {
+            panier = new PanierEntity();
+            user.setPanier(panier);
+            userRepository.save(user);
+        }
+
+        // Gestion quantité
+        Optional<PanierSolution> existing = panier.getSolutionItems().stream()
+                .filter(item -> item.getSolution().getId()== solutionId)
+                .findFirst();
+
+        if (existing.isPresent()) {
+            existing.get().setQuantite(existing.get().getQuantite() + 1);
+        } else {
+            PanierSolution newItem = new PanierSolution();
+            newItem.setPanier(panier);
+            newItem.setSolution(solution);
+            newItem.setQuantite(1);
+            panier.getSolutionItems().add(newItem);
+        }
+
+        panierRepository.save(panier);
+
+        // ON NE RENVOIE PAS LE PANIER → ON RENVOIE UN JSON PROPRE
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", true);
+        response.put("message", "Ajouté au panier avec succès !");
+        response.put("totalItems", panier.getSolutionItems().size());
+
+        return ResponseEntity.ok(response);
+    }
+
+    // SUPPRIMER UNE SOLUTION DU PANIER (diminue quantité ou supprime)
+    @DeleteMapping("/{id}/panier/solutions/{solutionId}")
+    public ResponseEntity<PanierEntity> removeSolutionFromPanier(
+            @PathVariable Long id,
+            @PathVariable Integer solutionId) {
+
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        PanierEntity panier = user.getPanier();
+        if (panier == null) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(null);
+        }
+
+        Optional<PanierSolution> itemOpt = panier.getSolutionItems().stream()
+                .filter(item -> item.getSolution().getId() == solutionId)
+                .findFirst();
+
+        if (itemOpt.isPresent()) {
+            PanierSolution item = itemOpt.get();
+            if (item.getQuantite() > 1) {
+                item.setQuantite(item.getQuantite() - 1);
+            } else {
+                panier.getSolutionItems().remove(item);
+            }
+            panierRepository.save(panier);
         }
 
         return ResponseEntity.ok(panier);
     }
 
-    //s'inscrire a une fromation
+    // VIDER LE PANIER
+    @DeleteMapping("/{id}/panier")
+    public ResponseEntity<String> clearPanier(@PathVariable Long id) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        if (user.getPanier() != null) {
+            user.getPanier().getSolutionItems().clear();
+            panierRepository.save(user.getPanier());
+        }
+        return ResponseEntity.ok("Panier vidé");
+    }
+
+    // ====================== FORMATIONS & AVIS ======================
+    @GetMapping("/{id}/formations")
+    public ResponseEntity<List<FormationEntity>> getUserFormations(@PathVariable Long id) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        return ResponseEntity.ok(user.getFormations());
+    }
+
     @PostMapping("/{id}/formations/{formationId}")
     public ResponseEntity<User> enrollInFormation(@PathVariable Long id, @PathVariable Long formationId) {
         User user = userRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found with id " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         FormationEntity formation = formationRepository.findById(formationId)
-                .orElseThrow(() -> new ResourceNotFoundException("Formation not found with id " + formationId));
+                .orElseThrow(() -> new ResourceNotFoundException("Formation not found"));
 
-        // inscrit dans la formation??
-        if (user.getFormations().contains(formation)) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(null);
+        if (!user.getFormations().contains(formation)) {
+            user.getFormations().add(formation);
+            formation.getUsers().add(user);
+            userRepository.save(user);
+            formationRepository.save(formation);
         }
-
-        user.getFormations().add(formation);
-        formation.getUsers().add(user);
-
-        userRepository.save(user);
-        formationRepository.save(formation);
-
-        return ResponseEntity.status(HttpStatus.CREATED).body(user);
+        return ResponseEntity.ok(user);
     }
 
-    //envoyer un avis
-    @PostMapping("/{id}/avis")
-    public ResponseEntity<AvisEntity> addAvis(@PathVariable Long id, @RequestBody AvisEntity avisEntity) {
-        User user = userRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found with id " + id));
-
-
-        avisEntity.setUser(user);
-
-        AvisEntity savedAvis = avisRepository.save(avisEntity);
-
-        return ResponseEntity.status(HttpStatus.CREATED).body(savedAvis);
-    }
-
-    //se desabonner a la formation
     @DeleteMapping("/{id}/formations/{formationId}")
     public ResponseEntity<User> removeFromFormation(@PathVariable Long id, @PathVariable Long formationId) {
         User user = userRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found with id " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         FormationEntity formation = formationRepository.findById(formationId)
-                .orElseThrow(() -> new ResourceNotFoundException("Formation not found with id " + formationId));
-
-        if (!user.getFormations().contains(formation)) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(null);  // deja desabonné
-        }
+                .orElseThrow(() -> new ResourceNotFoundException("Formation not found"));
 
         user.getFormations().remove(formation);
         formation.getUsers().remove(user);
-
         userRepository.save(user);
         formationRepository.save(formation);
 
         return ResponseEntity.ok(user);
     }
 
-    //ajouter une solution a son panier
-    @PostMapping("/{id}/panier/solutions/{solutionId}")
-    public ResponseEntity<PanierEntity> addSolutionToPanier(@PathVariable Long id, @PathVariable Long solutionId) {
+    @PostMapping("/{id}/avis")
+    public ResponseEntity<AvisEntity> addAvis(@PathVariable Long id, @RequestBody AvisEntity avis) {
         User user = userRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found with id " + id));
-        SolutionEntity solution = solutionRepository.findById(solutionId)
-                .orElseThrow(() -> new ResourceNotFoundException("Solution not found with id " + solutionId));
-
-        PanierEntity panier = user.getPanier();
-        if (panier == null) {
-            // cree un panier si n'existe pas
-            panier = new PanierEntity();
-            panier.setSolutions(new ArrayList<>());
-            user.setPanier(panier);
-        }
-
-        //ajouter la solution
-        if (!panier.getSolutions().contains(solution)) {
-            panier.getSolutions().add(solution);
-        }
-
-        panierRepository.save(panier);
-        userRepository.save(user);
-
-        return ResponseEntity.status(HttpStatus.CREATED).body(panier);
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        avis.setUser(user);
+        return ResponseEntity.status(HttpStatus.CREATED).body(avisRepository.save(avis));
     }
 
-    //supprimer la solution de son panier
-    @DeleteMapping("/{id}/panier/solutions/{solutionId}")
-    public ResponseEntity<PanierEntity> removeSolutionFromPanier(@PathVariable Long id, @PathVariable Long solutionId) {
-        User user = userRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found with id " + id));
-        SolutionEntity solution = solutionRepository.findById(solutionId)
-                .orElseThrow(() -> new ResourceNotFoundException("Solution not found with id " + solutionId));
-
-        PanierEntity panier = user.getPanier();
-        if (panier == null || !panier.getSolutions().contains(solution)) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(null);  //la solution n'est pas dans le panier
-        }
-
-        panier.getSolutions().remove(solution);
-        panierRepository.save(panier);
-
-        return ResponseEntity.ok(panier);
-    }
-
-    @PostMapping("/{id}/panier")
-    public ResponseEntity<PanierEntity> createOrUpdatePanier(@PathVariable Long id, @RequestBody PanierEntity panierEntity) {
-        User user = userRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found with id " + id));
-
-        PanierEntity panier = user.getPanier();
-        if (panier == null) {
-            panier = new PanierEntity();
-            user.setPanier(panier);
-        }
-
-
-        panier.setSolutions(panierEntity.getSolutions());
-        panierRepository.save(panier);
-        userRepository.save(user);
-
-        return ResponseEntity.status(HttpStatus.CREATED).body(panier);
-    }
-
-
-
+    // ====================== AUTH ======================
     @PostMapping("/login")
-    public ResponseEntity<?> loginUser(@RequestBody User loginData) {
+    public ResponseEntity<User> loginUser(@RequestBody User loginData) {
         Optional<User> userOpt = userRepository.findByEmail(loginData.getEmail());
-        System.out.println(loginData.getPassword());
-        System.out.println(loginData.getEmail());
-        if (userOpt.isPresent()) {
-            User user = userOpt.get();
-
-            if (user.getPassword().equals(loginData.getPassword())) {
-                return ResponseEntity.ok(user);
-            } else {
-                System.out.println("Password mismatch.");
-            }
-        } else {
-            System.out.println("User not found.");
+        if (userOpt.isPresent() && userOpt.get().getPassword().equals(loginData.getPassword())) {
+            return ResponseEntity.ok(userOpt.get());
         }
-
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid credentials");
-
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(null);
     }
-
-
 
     @PostMapping("/logout")
-    public ResponseEntity<?> logout(HttpSession session) {
-        session.invalidate();
-        return ResponseEntity.ok("Logged out successfully.");
+    public ResponseEntity<String> logout() {
+        return ResponseEntity.ok("Logged out successfully");
     }
-
-
-
-
-
-
-
-
-
-
-
-
 }

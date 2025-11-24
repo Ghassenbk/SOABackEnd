@@ -12,7 +12,7 @@ import java.util.List;
 @Repository
 public interface PaiementRepository extends JpaRepository<PaiementEntity, Long> {
 
-    @EntityGraph(attributePaths = {"user", "solutionsBought"})
+
     List<PaiementEntity> findAll();  // Default method to fetch all paiements
 
     List<PaiementEntity> findByUser(User user);

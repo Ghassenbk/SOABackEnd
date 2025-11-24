@@ -11,7 +11,6 @@ import javax.validation.Valid;
 import java.util.List;
 import java.util.Optional;
 
-@CrossOrigin(origins = "http://localhost:50930")
 @RestController
 @RequestMapping("/avis")
 public class AvisController {
